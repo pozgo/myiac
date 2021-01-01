@@ -13,11 +13,11 @@ func createSecretCmd() cli.Command {
 	secretNameFlag := &cli.StringFlag{Name: "secretName", Usage: "The name of the secret to be created in K8s"}
 	saEmailFlag := &cli.StringFlag{Name: "saEmail", Usage: "The service account email whose key will be associated to the secret"}
 	recreateKeyFlag :=  &cli.BoolFlag{Name: "recreateSaKey", Usage: "Whether or not it should recreate the SA key"}
-	literalStringFlag := &cli.StringFlag{Name: "literal", Usage: "String to encode as secret, in plain text"}
+	literalStringFlag := &cli.StringFlag{Name: "literal", Usage: "String to encode as secret, in plain text as key=value pairs"}
 
 	return cli.Command{
 		Name:  "createSecret",
-		Usage: "Create Kubernetes secret from a file",
+		Usage: "Create Kubernetes secret from a file or literal",
 		Flags: []cli.Flag{
 			secretNameFlag,
 			saEmailFlag,

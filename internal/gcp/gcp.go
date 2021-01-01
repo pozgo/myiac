@@ -89,7 +89,7 @@ func ResizeCluster(project string, zone string, environment string, targetSize i
 	for _,np := range nodePools {
 		nodePoolName := np["name"]
 		nodePoolNameStr, _ := nodePoolName.(string)
-		fmt.Printf("Resizing node pool %s to %d\n", nodePoolName, targetSize)
+		fmt.Printf("\nResizing node pool %s to %d\n", nodePoolName, targetSize)
 		targetSizeStr := strconv.Itoa(targetSize)
 		nodePoolResizeArray := util.StringTemplateToArgsArray(nodePoolResizeTpl, nodePoolNameStr, targetSizeStr)
 		nodePoolResizePart := strings.Join(nodePoolResizeArray, " ")
