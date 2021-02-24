@@ -1,5 +1,9 @@
 *.json
-charts
 bin
 .idea
 myiac
+cf-key.dec
+~
+terraform/
+helm/
+cf-key.key

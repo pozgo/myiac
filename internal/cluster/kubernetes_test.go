@@ -1,28 +1,25 @@
 package cluster
 
 import (
-	"fmt"
-	"github.com/dfernandezm/myiac/testutil"
-	"github.com/stretchr/testify/assert"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
-func TestCreateFileSecret(t *testing.T) {
-	// setup
-	cmdLine := testutil.FakeKubernetesRunner("secret default/test-secret created")
-	kubernetesRunner := NewKubernetesRunner(cmdLine)
+func TestGetIpsAsHelmParams(t *testing.T) {
+	ipArray := []string{"1.1.1.1", "2.2.2.2", "3.3.3.3"}
 
-	// given
-	filePath := "/tmp/filepath"
-	secretName := "test-Secret-Name"
+	helmParams := getNodesInternalIpsAsHelmParams(ipArray)
 
-	// when
-	kubernetesRunner.CreateFileSecret(secretName, "default", filePath)
+	expectedOutputIps := "{1.1.1.1\\,2.2.2.2\\,3.3.3.3}"
 
-	// then
-	expectedCreateSecretCmdLine := fmt.Sprintf("kubectl create secret generic %s " +
-			"--from-file=%s.json=%s -n default", secretName, secretName, filePath)
-	actualCreateSecretCmdLine := cmdLine.CmdLines[0]
+	assert.True(t, mapHasKey(helmParams, externalIpsKeyName))
+	assert.Equal(t, helmParams[externalIpsKeyName], expectedOutputIps)
+}
 
-	assert.Equal(t, expectedCreateSecretCmdLine, actualCreateSecretCmdLine)
+func mapHasKey(aMap map[string]string, key string) bool {
+	if _, ok := aMap[key]; ok {
+		return true
+	}
+	return false
 }

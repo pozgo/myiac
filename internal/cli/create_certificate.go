@@ -2,26 +2,28 @@ package cli
 
 import (
 	"fmt"
-	"github.com/dfernandezm/myiac/internal/secret"
-	"github.com/dfernandezm/myiac/internal/ssl"
-	"github.com/urfave/cli"
 	"log"
+
+	"github.com/iac-io/myiac/internal/cluster"
+	"github.com/iac-io/myiac/internal/secret"
+	"github.com/iac-io/myiac/internal/ssl"
+	"github.com/urfave/cli"
 )
 
 func createCertCmd() cli.Command {
 
 	keyPathFlag := &cli.StringFlag{
-		Name: "keyPath, k",
+		Name:  "keyPath, k",
 		Usage: "Location of file with private key",
 	}
 
 	certPathFlag := &cli.StringFlag{
-		Name: "certPath, c",
+		Name:  "certPath, c",
 		Usage: "Cert path flag",
 	}
 
 	domainNameFlag := &cli.StringFlag{
-		Name: "domain, d",
+		Name:  "domain, d",
 		Usage: "Domain name",
 	}
 
@@ -43,7 +45,7 @@ func createCertCmd() cli.Command {
 
 			log.Printf("Creating certificate for %s from %s - %s \n", domainName, certPath, keyPath)
 
-			ProviderSetup()
+			cluster.ProviderSetup()
 
 			secretManager := secret.CreateKubernetesSecretManager("default")
 			certificate := ssl.NewCertificate(domainName, certPath, keyPath)
@@ -60,5 +62,3 @@ func validateFlags(c *cli.Context) {
 	_ = validateStringFlagPresence("certPath", c)
 	_ = validateStringFlagPresence("domain", c)
 }
-
-

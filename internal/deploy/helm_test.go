@@ -2,10 +2,9 @@ package deploy
 
 import (
 	"encoding/json"
-	"github.com/dfernandezm/myiac/internal/commandline"
 	"testing"
-	//"github.com/stretchr/testify/assert"
-	//"github.com/stretchr/testify/require"
+
+	"github.com/iac-io/myiac/internal/commandline"
 )
 
 const ExistingReleasesOutput = `
@@ -49,9 +48,14 @@ const ExistingReleasesOutput = `
 
 // Here we implement the CommandRunner interface with a testing mock
 type mockCommandRunner struct {
-	executable string
-	arguments  []string
-	output     string
+	executable     string
+	arguments      []string
+	output         string
+	suppressOutput bool
+}
+
+func (mcr *mockCommandRunner) SetSuppressOutput(suppressOutput bool) {
+	mcr.suppressOutput = suppressOutput
 }
 
 func (mcr *mockCommandRunner) SetOutput(output string) {
@@ -69,7 +73,7 @@ func (mcr mockCommandRunner) Setup(executable string, args []string) {
 	mcr.arguments = args
 }
 
-func (mcr mockCommandRunner) SetupWithoutOutput(executable string, args []string)  {
+func (mcr mockCommandRunner) SetupWithoutOutput(executable string, args []string) {
 	mcr.executable = executable
 	mcr.arguments = args
 }
@@ -97,7 +101,7 @@ func TestReleaseDeployed(t *testing.T) {
 
 func TestReleaseHasFailed(t *testing.T) {
 	commandRunner := &mockCommandRunner{output: ""}
-	d := NewHelmDeployer("charts",commandRunner)
+	d := NewHelmDeployer("charts", commandRunner)
 
 	// Given: a release (2nd one) has failed status
 	releasesList := d.ParseReleasesList(ExistingReleasesOutput)

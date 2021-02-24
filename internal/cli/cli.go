@@ -2,17 +2,18 @@ package cli
 
 import (
 	"fmt"
-	"github.com/dfernandezm/myiac/internal/cluster"
-	"github.com/dfernandezm/myiac/internal/deploy"
-	"github.com/dfernandezm/myiac/internal/docker"
-	"github.com/dfernandezm/myiac/internal/encryption"
-	"github.com/dfernandezm/myiac/internal/gcp"
-	props "github.com/dfernandezm/myiac/internal/properties"
-	"github.com/urfave/cli"
 	"log"
 	"os"
 	"strconv"
 	"strings"
+
+	"github.com/iac-io/myiac/internal/cluster"
+	"github.com/iac-io/myiac/internal/deploy"
+	"github.com/iac-io/myiac/internal/docker"
+	"github.com/iac-io/myiac/internal/encryption"
+	"github.com/iac-io/myiac/internal/gcp"
+	props "github.com/iac-io/myiac/internal/properties"
+	"github.com/urfave/cli"
 )
 
 const GCRPrefix = "eu.gcr.io"
@@ -30,21 +31,32 @@ func BuildCli() {
 	environmentFlag := &cli.StringFlag{Name: "env, e", Usage: "The environment to refer to (dev,prod)"}
 	projectFlag := &cli.StringFlag{Name: "project, p", Usage: "The project to refer to (projects folder manifests)"}
 	propertiesFlag := &cli.StringFlag{Name: "properties", Usage: "Properties for deployments"}
+	dryRunFlag := &cli.BoolFlag{Name: "dry-run", Usage: "Dry Run"}
+	providerFlag := &cli.StringFlag{Name: "provider", Usage: "Select k8s provider (GCP only for now) "}
 
 	keyPath := &cli.StringFlag{Name: "keyPath", Usage: "SA key path"}
-	setupEnvironment := setupEnvironmentCmd(projectFlag, keyPath)
+	tfConfigPath := &cli.StringFlag{Name: "tfConfigPath", Usage: "Terraform Configuration Directory Path"}
+	zoneFlag := &cli.StringFlag{Name: "zone", Usage: "Cluster Zone  (example: europe-west2-b)"}
+	poolNameFlag := &cli.StringFlag{Name: "pool-name", Usage: "Pool Name"}
+	poolSizeFlag := &cli.StringFlag{Name: "pool-size", Usage: "New Pool Size"}
+	setupEnvironment := setupEnvironmentCmd(providerFlag, projectFlag, environmentFlag, keyPath, dryRunFlag, zoneFlag)
 	dockerSetup := dockerSetupCmd(projectFlag, environmentFlag)
 	dockerBuild := dockerBuildCmd(projectFlag)
 
-	createClusterCmd := createClusterCmd(projectFlag, environmentFlag)
+	createClusterCmd := createClusterCmd(projectFlag, environmentFlag, dryRunFlag, providerFlag, keyPath,
+		tfConfigPath, zoneFlag)
 	installHelmCmd := installHelmCmd(projectFlag, environmentFlag)
-	destroyClusterCmd := destroyClusterCmd(projectFlag, environmentFlag)
+	destroyClusterCmd := destroyClusterCmd(projectFlag, environmentFlag, providerFlag, keyPath, tfConfigPath)
 
 	deployApp := deployAppSetup(projectFlag, environmentFlag, propertiesFlag)
 	resizeClusterCmd := resizeClusterCmd(projectFlag, environmentFlag)
+	resizePoolCmd := resizePoolCmd(providerFlag, projectFlag, environmentFlag, poolNameFlag, poolSizeFlag, zoneFlag,
+		keyPath, dryRunFlag)
 	createSecretCmd := createSecretCmd()
 	cryptCmd := cryptCmd(projectFlag)
 	createCertCmd := createCertCmd()
+
+	updateDnsFromClusterIps := updateDnsFromClusterIpsCmd()
 
 	app.Commands = []cli.Command{
 		setupEnvironment,
@@ -58,6 +70,8 @@ func BuildCli() {
 		createSecretCmd,
 		cryptCmd,
 		createCertCmd,
+		resizePoolCmd,
+		updateDnsFromClusterIps,
 	}
 
 	err := app.Run(os.Args)
@@ -68,7 +82,7 @@ func BuildCli() {
 
 func cryptCmd(projectFlag *cli.StringFlag) cli.Command {
 	modeFlag := &cli.StringFlag{
-		Name: "mode, m",
+		Name:  "mode, m",
 		Usage: "encrypt or decrypt",
 	}
 
@@ -107,7 +121,7 @@ func cryptCmd(projectFlag *cli.StringFlag) cli.Command {
 			encrypter := encryption.NewEncrypter(kmsEncrypter)
 
 			if mode != "encrypt" && mode != "decrypt" {
-				return cli.NewExitError("mode can only be 'encrypt' or 'decrypt'",-1)
+				return cli.NewExitError("mode can only be 'encrypt' or 'decrypt'", -1)
 			}
 
 			if mode == "encrypt" {
@@ -121,6 +135,58 @@ func cryptCmd(projectFlag *cli.StringFlag) cli.Command {
 			return nil
 		},
 	}
+}
+
+func resizePoolCmd(providerFlag *cli.StringFlag, projectFlag *cli.StringFlag, environmentFlag *cli.StringFlag,
+	poolNameFlag *cli.StringFlag, poolSizeFlag *cli.StringFlag, zoneFlag *cli.StringFlag,
+	keyPath *cli.StringFlag, dryRunFlag *cli.BoolFlag) cli.Command {
+
+	return cli.Command{
+		Name:  "resizePool",
+		Usage: "resizePool to given capacity",
+		Flags: []cli.Flag{
+			providerFlag,
+			projectFlag,
+			environmentFlag,
+			poolNameFlag,
+			poolSizeFlag,
+			zoneFlag,
+			keyPath,
+			dryRunFlag,
+		},
+		Action: func(c *cli.Context) error {
+			fmt.Printf("Validating flags for resizePool\n")
+			_ = validateBaseFlags(c)
+			//_ = validateNodePoolsSize(c)
+			_ = validateStringFlagPresence("provider", c)
+			_ = validateStringFlagPresence("project", c)
+			_ = validateStringFlagPresence("env", c)
+			_ = validateStringFlagPresence("zone", c)
+			_ = validateStringFlagPresence("keyPath", c)
+			_ = validateStringFlagPresence("pool-name", c)
+			_ = validateStringFlagPresence("pool-size", c)
+
+			provider := c.String("provider")
+			project := c.String("project")
+			env := c.String("env")
+			zone := c.String("zone")
+			key := c.String("keyPath")
+			poolName := c.String("pool-name")
+			poolSize := c.String("pool-size")
+			dryrRun := c.Bool("dry-run")
+
+			//TODO: read from project manifest
+			//log.Printf("project: %s", project)
+			//log.Printf("env: %s", env)
+			//log.Printf("zone: %s", zone)
+			//log.Printf("resizong Node Pool: %s to %s nodes", poolName, poolSize)
+			cluster.SetupProvider(provider, zone, project+"-"+env, project, key, dryrRun)
+			gcp.ResizePool(project, env, poolName, poolSize, zone)
+			//gcp.ResizeCluster(project, zone, env, nodePoolsSize)
+			return nil
+		},
+	}
+	//
 }
 
 func resizeClusterCmd(projectFlag *cli.StringFlag, environmentFlag *cli.StringFlag) cli.Command {
@@ -142,12 +208,11 @@ func resizeClusterCmd(projectFlag *cli.StringFlag, environmentFlag *cli.StringFl
 			project := c.String("project")
 			env := c.String("env")
 			nodePoolsSize := c.Int("nodePoolsSize")
-
 			gcp.SetupEnvironment(project)
 
 			//TODO: read from project manifest
 			zone := "europe-west1-b"
-			
+
 			gcp.ResizeCluster(project, zone, env, nodePoolsSize)
 			return nil
 		},
@@ -223,7 +288,6 @@ func dockerBuildCmd(projectFlag *cli.StringFlag) cli.Command {
 	}
 }
 
-
 func deployAppSetup(projectFlag *cli.StringFlag, environmentFlag *cli.StringFlag, propertiesFlag *cli.StringFlag) cli.Command {
 	appNameFlag := &cli.StringFlag{Name: "app, a",
 		Usage: "The app to deploy. A helm chart with the same name must exist in the CHARTS_LOCATION"}
@@ -241,7 +305,7 @@ func deployAppSetup(projectFlag *cli.StringFlag, environmentFlag *cli.StringFlag
 		Action: func(c *cli.Context) error {
 			fmt.Printf("Deploying with flags\n")
 			if err := validateBaseFlags(c); err != nil {
-				fmt.Printf("Returning error %e\n",err)
+				fmt.Printf("Returning error %e\n", err)
 				return err
 			}
 
@@ -255,63 +319,96 @@ func deployAppSetup(projectFlag *cli.StringFlag, environmentFlag *cli.StringFlag
 			fmt.Printf("Properties for deployment: %s\n", c.String("properties"))
 			propertiesMap := readPropertiesToMap(c.String("properties"))
 			dryRun := c.Bool("dryRun")
-			deploy.Deploy(appToDeploy, env, propertiesMap, dryRun)
+
+			deployer := deploy.NewDeployer()
+			deployer.Deploy(appToDeploy, env, propertiesMap, dryRun)
 			return nil
 		},
 	}
 }
 
-func createClusterCmd(projectFlag *cli.StringFlag, environmentFlag *cli.StringFlag) cli.Command {
+func createClusterCmd(projectFlag *cli.StringFlag, environmentFlag *cli.StringFlag,
+	dryRunFlag *cli.BoolFlag, providerFlag *cli.StringFlag, keyPath *cli.StringFlag, tfConfigPath *cli.StringFlag, zoneFlag *cli.StringFlag) cli.Command {
 	return cli.Command{
 		Name:  "createCluster",
 		Usage: "Create a Kubernetes cluster through Terraform",
 		Flags: []cli.Flag{
 			projectFlag,
 			environmentFlag,
+			dryRunFlag,
+			providerFlag,
+			keyPath,
+			tfConfigPath,
+			zoneFlag,
 		},
 		Action: func(c *cli.Context) error {
 			fmt.Printf("Validating flags for createCluster\n")
-			validateBaseFlags(c)
-			fmt.Printf("destroyCluster running with flags\n")
+			_ = validateBaseFlags(c)
+			_ = validateStringFlagPresence("provider", c)
+			_ = validateStringFlagPresence("env", c)
+			_ = validateStringFlagPresence("keyPath", c)
+			_ = validateStringFlagPresence("zone", c)
+			fmt.Printf("createCluster running with flags\n")
 
 			project := c.String("project")
 			env := c.String("env")
+			dryrun := c.Bool("dry-run")
+			provider := c.String("provider")
+			key := c.String("keyPath")
+			tfConfigPath := c.String("tfConfigPath")
+			zone := c.String("zone")
+			clusterName := project + "-" + env
 
-			//TODO: read from project manifest
-			zone := "europe-west1-b"
-			gcp.SetupEnvironment(project)
-	
+			if provider == "gcp" {
+				//Setup ENV Variable with the json credentials
+				gcp.SetKeyEnvVar(key)
+			}
 
 			//TODO: pass-in variables
-			cluster.CreateCluster(project, env, zone)
+			err := cluster.CreateCluster(project, env, dryrun, tfConfigPath)
+			if err != nil {
+				log.Fatalf("Could not create cluster in project: %v. Error: %v", project, err)
+			}
+			cluster.SetupProvider(provider, zone, clusterName, project, key, dryrun)
+
 			return nil
+
 		},
 	}
 }
 
-func destroyClusterCmd(projectFlag *cli.StringFlag, environmentFlag *cli.StringFlag) cli.Command {
+func destroyClusterCmd(projectFlag *cli.StringFlag, environmentFlag *cli.StringFlag, providerFlag *cli.StringFlag,
+	keyPath *cli.StringFlag, tfConfigPath *cli.StringFlag) cli.Command {
 	return cli.Command{
 		Name:  "destroyCluster",
 		Usage: "Destroy an existing Kubernetes cluster created previously through Terraform",
 		Flags: []cli.Flag{
 			projectFlag,
 			environmentFlag,
+			providerFlag,
+			keyPath,
+			tfConfigPath,
 		},
 		Action: func(c *cli.Context) error {
 			fmt.Printf("Validating flags for destroyCluster\n")
-			validateBaseFlags(c)
+			_ = validateBaseFlags(c)
+			_ = validateStringFlagPresence("provider", c)
+			_ = validateStringFlagPresence("env", c)
+			_ = validateStringFlagPresence("keyPath", c)
 			fmt.Printf("destroyCluster running with flags\n")
 
 			project := c.String("project")
-			gcp.SetupEnvironment(project)
-
 			env := c.String("env")
+			provider := c.String("provider")
+			keyPath := c.String("keyPath")
+			tfConfigPath := c.String("tfConfigPath")
 
-			//TODO: read from project manifest
-			zone := "europe-west1-b"
-			gcp.SetupKubernetes(project, zone, env)
+			if provider == "gcp" {
+				//Setup ENV Variable with the json credentials
+				gcp.SetKeyEnvVar(keyPath)
+			}
 
-			cluster.DestroyCluster()
+			cluster.DestroyCluster(project, env, tfConfigPath)
 			return nil
 		},
 	}
@@ -337,7 +434,46 @@ func installHelmCmd(projectFlag *cli.StringFlag, environmentFlag *cli.StringFlag
 			zone := "europe-west1-b"
 			gcp.SetupKubernetes(project, zone, env)
 
-			cluster.InstallHelm()
+			//TODO: Need to botsrap this be full blown go solution. Disabling for now.
+			//cluster.InstallHelm()
+
+			return nil
+		},
+	}
+}
+
+func setupEnvironmentCmd(providerFlag *cli.StringFlag, projectFlag *cli.StringFlag, environmentFlag *cli.StringFlag,
+	keyPath *cli.StringFlag, dryRunFlag *cli.BoolFlag, zone *cli.StringFlag) cli.Command {
+
+	return cli.Command{
+		Name:  "setupEnvironment",
+		Usage: "Setup the environment with the cloud provider",
+		Flags: []cli.Flag{
+			providerFlag,
+			projectFlag,
+			environmentFlag,
+			keyPath,
+			dryRunFlag,
+			zone,
+		},
+		Action: func(c *cli.Context) error {
+			fmt.Printf("Validating flags for setupEnvironment\n")
+			_ = validateBaseFlags(c)
+			_ = validateStringFlagPresence("provider", c)
+			_ = validateStringFlagPresence("env", c)
+			_ = validateStringFlagPresence("project", c)
+			_ = validateStringFlagPresence("keyPath", c)
+			_ = validateStringFlagPresence("zone", c)
+
+			providerValue := c.String("provider")
+			project := c.String("project")
+			env := c.String("env")
+			keyLocation := c.String("keyPath")
+			dryrun := c.Bool("dry-run")
+			zone := c.String("zone")
+
+			clusterName := project + "-" + env
+			cluster.SetupProvider(providerValue, zone, clusterName, project, keyLocation, dryrun)
 
 			return nil
 		},
@@ -372,11 +508,11 @@ func validateNodePoolsSize(ctx *cli.Context) error {
 	if val < 0 {
 		logErrorAndExit(fmt.Sprintf("Invalid nodePoolsSize: %d", val))
 	}
-	
+
 	if len(nodePoolsSizeValue) == 0 {
 		logErrorAndExit("Invalid nodePoolsSize: " + nodePoolsSizeValue)
-	} 
-	
+	}
+
 	return nil
 }
 

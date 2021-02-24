@@ -2,10 +2,12 @@ package preferences
 
 import (
 	"fmt"
-	"github.com/dfernandezm/myiac/internal/util"
-	"github.com/stretchr/testify/assert"
+	"log"
 	"os"
 	"testing"
+
+	"github.com/iac-io/myiac/internal/util"
+	"github.com/stretchr/testify/assert"
 )
 
 var prefsFilename = "/tmp/.myiac/testPrefs"
@@ -22,6 +24,7 @@ func setup() {
 }
 
 func teardown() {
+	log.Printf("Cleaning up prefs file")
 	_ = os.Remove(prefsFilename)
 }
 
@@ -38,6 +41,22 @@ func TestSetsProperty(t *testing.T) {
 	fmt.Printf("Contents %v", prefsFileContent)
 	assert.Contains(t, prefsFileContent, "testProperty")
 	assert.Contains(t, prefsFileContent, "testValue")
+}
+
+func TestSetsMultipleProperties(t *testing.T) {
+	prefs := NewConfig(prefsFilename)
+
+	multipleProps := make(map[string]string)
+	multipleProps["testProperty"] = "testValue"
+	multipleProps["testAnotherProperty"] = "testAnotherValue"
+	prefs.SetMultiple(multipleProps)
+
+	prefsFileContent, _ := util.ReadFileToString(prefsFilename)
+	fmt.Printf("Contents %v", prefsFileContent)
+	assert.Contains(t, prefsFileContent, "testProperty")
+	assert.Contains(t, prefsFileContent, "testValue")
+	assert.Contains(t, prefsFileContent, "testAnotherProperty")
+	assert.Contains(t, prefsFileContent, "testAnotherValue")
 }
 
 func TestGetsProperty(t *testing.T) {

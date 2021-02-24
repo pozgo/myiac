@@ -2,9 +2,10 @@ package ssl
 
 import (
 	"fmt"
-	"github.com/dfernandezm/myiac/internal/secret"
-	"github.com/dfernandezm/myiac/internal/util"
 	"log"
+
+	"github.com/iac-io/myiac/internal/secret"
+	"github.com/iac-io/myiac/internal/util"
 )
 
 type CertStore interface {
@@ -15,8 +16,8 @@ type SecretCertStore struct {
 	secretManager secret.SecretManager
 }
 
-func NewSecretCertStore(secretManager secret.SecretManager) *SecretCertStore {
-	return &SecretCertStore{secretManager:secretManager}
+func NewSecretCertStore(secretManager secret.SecretManager) CertStore {
+	return &SecretCertStore{secretManager: secretManager}
 }
 
 func (scs *SecretCertStore) Register(certificate *Certificate) {
@@ -25,21 +26,21 @@ func (scs *SecretCertStore) Register(certificate *Certificate) {
 }
 
 type Certificate struct {
-	Domain string
-	privateKey string
+	Domain         string
+	privateKey     string
 	privateKeyPath string
-	cert string
-	certPath string
+	cert           string
+	certPath       string
 }
 
 // NewCertificate Create a new certificate from paths to PEM and KEY files
 func NewCertificate(domainName string, certPath string, privateKeyPath string) *Certificate {
 	certValue, privateKeyValue := certValuesFromPaths(certPath, privateKeyPath)
 	return &Certificate{
-		Domain:domainName,
-		cert: certValue,
-		privateKey: privateKeyValue,
-		certPath: certPath,
+		Domain:         domainName,
+		cert:           certValue,
+		privateKey:     privateKeyValue,
+		certPath:       certPath,
 		privateKeyPath: privateKeyPath}
 }
 

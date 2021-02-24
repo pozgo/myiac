@@ -1,5 +1,8 @@
 # MyIAC
 
+![Build](https://github.com/iac-io/myiac/workflows/Build%20MyIaC/badge.svg?branch=master) 
+[![codecov](https://codecov.io/gh/iac-io/myiac/branch/master/graph/badge.svg?token=RSFM9B2QJ5)](https://codecov.io/gh/iac-io/myiac)
+
 Infrastructure as code. GCP for now.
 
 ## Setup
@@ -53,5 +56,10 @@ The cluster needs to be created beforehand as the `createCluster` and `destroyCl
 
 ## Setting up SSL in traefik
 
-https://github.com/dfernandezm/myiac/blob/e0cbdde19ed9c4b8da750481e175e936c66d113c/kubernetes/cluster/README.md
+https://github.com/iac-io/myiac/blob/e0cbdde19ed9c4b8da750481e175e936c66d113c/kubernetes/cluster/README.md
 
+## Launch Dev Env
+
+```
+./start-dev-env.sh ~/my_Key.json ${PWD}/terraform ${PWD}/helm
+```

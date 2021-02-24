@@ -19,7 +19,14 @@ type CommandRunner interface {
 	SetupWithoutOutput(cmd string, args []string)
 	SetupCmdLine(cmdLine string)
 	IgnoreError(ignoreError bool)
+	SetSuppressOutput(suppressOutput bool)
 	Run() CommandOutput
+}
+
+type CommandOptions struct {
+	CommandLine    string
+	WorkingDir     string
+	SuppressOutput bool
 }
 
 type commandExec struct {
@@ -35,13 +42,13 @@ type CommandOutput struct {
 	Output string
 }
 
-func NewEmpty() *commandExec {
+func NewEmpty() CommandRunner {
 	ce := &commandExec{"", make([]string, 0), "", "",
 		false, false}
 	return ce
 }
 
-func NewCommandLine(commandLine string) *commandExec {
+func NewCommandLine(commandLine string) CommandRunner {
 	commandParts := strings.Split(commandLine, " ")
 	executable := commandParts[0]
 	args := commandParts[1:]
@@ -50,16 +57,36 @@ func NewCommandLine(commandLine string) *commandExec {
 	return ce
 }
 
-func New(executable string, arguments []string) *commandExec {
+func New(executable string, arguments []string) CommandRunner {
 	ce := &commandExec{executable, arguments, "", "",
 		false, false}
 	return ce
 }
 
-func NewWithWorkingDir(executable string, arguments []string, workingDir string) *commandExec {
+func NewWithWorkingDir(executable string, arguments []string, workingDir string) CommandRunner {
 	ce := &commandExec{executable, arguments, "", workingDir,
 		false, false}
 	return ce
+}
+
+func NewWithOptions(commandOptions CommandOptions) (CommandRunner, error) {
+	if commandOptions.CommandLine != "" {
+		commandParts := strings.Split(commandOptions.CommandLine, " ")
+		executable := commandParts[0]
+		args := commandParts[1:]
+
+		//TODO: validate rest of parameters
+		ce := &commandExec{
+			executable,
+			args,
+			"",
+			commandOptions.WorkingDir,
+			commandOptions.SuppressOutput,
+			false}
+		return ce, nil
+	}
+
+	return nil, fmt.Errorf("options invalid to create commandline %v", commandOptions)
 }
 
 func (c *commandExec) SetupCmdLine(cmdLine string) {
@@ -74,7 +101,7 @@ func (c *commandExec) Setup(executable string, arguments []string) {
 	c.arguments = arguments
 }
 
-func (c *commandExec) SetupWithoutOutput(executable string, arguments []string)  {
+func (c *commandExec) SetupWithoutOutput(executable string, arguments []string) {
 	c.executable = executable
 	c.arguments = arguments
 	c.IsSuppressOutput = true
@@ -82,6 +109,10 @@ func (c *commandExec) SetupWithoutOutput(executable string, arguments []string) 
 
 func (c *commandExec) SetWorkingDir(workingDir string) {
 	c.workingDir = workingDir
+}
+
+func (c *commandExec) SetSuppressOutput(suppressOutput bool) {
+	c.IsSuppressOutput = suppressOutput
 }
 
 func (c *commandExec) Run() CommandOutput {
@@ -95,20 +126,19 @@ func (c *commandExec) Run() CommandOutput {
 	cmdStr := string(strings.Join(cmd.Args, " "))
 	fmt.Printf("Executing [ %s ]\n", cmdStr)
 
-	// output, err := withCombinedOutput(cmd, c.IsSuppressOutput)
 	output, err := withProgress(cmd, c.IsSuppressOutput, c.ignoreError)
 
 	if err != nil && !c.ignoreError {
 		log.Fatalf("command [ %s ] failed with %s\n", cmdStr, err)
 	}
 
-	if c.ignoreError {
+	if err != nil && c.ignoreError {
 		log.Printf("Ignoring error for command [ %s ] with %v\n", cmdStr, err)
 	} else {
 		c.saveOutput(output)
 	}
 
-	outputResult := CommandOutput{Output:c.commandOutput}
+	outputResult := CommandOutput{Output: c.commandOutput}
 
 	return outputResult
 }

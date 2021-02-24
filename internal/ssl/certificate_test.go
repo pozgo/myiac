@@ -1,57 +1,22 @@
 package ssl
 
 import (
-	"github.com/dfernandezm/myiac/internal/cluster"
-	"github.com/dfernandezm/myiac/internal/commandline"
-	"github.com/dfernandezm/myiac/internal/secret"
-	"github.com/dfernandezm/myiac/internal/util"
-	"github.com/stretchr/testify/assert"
-	"strings"
 	"testing"
+
+	"github.com/iac-io/myiac/internal/secret"
+	"github.com/iac-io/myiac/internal/util"
+	"github.com/iac-io/myiac/testutil"
+	"github.com/stretchr/testify/assert"
 )
-
-type fakeKubernetesRunner struct {
-	cmd string
-	args []string
-	CmdLines []string
-}
-
-func (fk *fakeKubernetesRunner) SetupWithoutOutput(cmd string, args []string) {
-	fk.cmd = cmd
-	fk.args = args
-}
-
-func (fk *fakeKubernetesRunner) Run() commandline.CommandOutput {
-	currentCmdLine := fk.cmd + " " + strings.Join(fk.args, " ")
-	fk.CmdLines = append(fk.CmdLines, currentCmdLine)
-	return commandline.CommandOutput{Output: "test-domain"}
-}
-
-func (fk fakeKubernetesRunner) RunVoid() {
-}
-
-func (fk fakeKubernetesRunner) Output() string {
-	return "test-domain"
-}
-
-func (fk fakeKubernetesRunner) Setup(cmd string, args []string) {
-}
-
-func (fk fakeKubernetesRunner) IgnoreError(ignoreError bool) {
-}
-
-func (fk fakeKubernetesRunner) SetupCmdLine(cmdLine string) {
-}
-
 
 func TestCreateTlsCertificate(t *testing.T) {
 	// setup
-	cmdLine := new(fakeKubernetesRunner)
-	kubernetesRunner := cluster.NewKubernetesRunner(cmdLine)
+	domain := "test-domain"
+	cmdLine := testutil.FakeCommandRunner(domain)
+	kubernetesRunner := secret.NewKubernetesRunner(cmdLine)
 	secretManager := secret.NewKubernetesSecretManager("default", kubernetesRunner)
 
 	// given
-	domain := "test-domain"
 	certPath := "/tmp/cert.pem"
 	keyPath := "/tmp/cert.key"
 
@@ -64,12 +29,14 @@ func TestCreateTlsCertificate(t *testing.T) {
 	certStore.Register(certificate)
 
 	// then
+	expectedDeleteSecretCmdLine := "kubectl delete secret test-domain -n default"
 	expectedCreateSecretCmdLine :=
 		"kubectl -n default create secret tls test-domain --key=/tmp/tls.key --cert=/tmp/tls.crt"
-	actualCreateSecretCmdLine := cmdLine.CmdLines[0]
+	actualDeleteSecretCmdLine := cmdLine.CmdLines[0]
+	actualCreateSecretCmdLine := cmdLine.CmdLines[1]
 
 	createdSecretName := kubernetesRunner.FindSecret(domain, "default")
 	assert.Contains(t, createdSecretName, domain)
 	assert.Equal(t, expectedCreateSecretCmdLine, actualCreateSecretCmdLine)
+	assert.Equal(t, expectedDeleteSecretCmdLine, actualDeleteSecretCmdLine)
 }
-

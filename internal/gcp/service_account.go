@@ -2,18 +2,18 @@ package gcp
 
 import (
 	"fmt"
-	"github.com/dfernandezm/myiac/internal/util"
-	"google.golang.org/api/iam/v1"
 	"os"
 	"strings"
-)
 
+	"github.com/iac-io/myiac/internal/util"
+	"google.golang.org/api/iam/v1"
+)
 
 // ServiceAccountClient allows management of service account keys (create, list) for given service account emails
 type ServiceAccountClient interface {
 	KeyForServiceAccount(saEmail string, recreateKey bool) (string, error)
 	KeyFileForServiceAccount(saEmail string, recreateKey bool, filePath string) error
-	CreateKey(serviceAccountEmail string)
+	CreateKey(serviceAccountEmail string) (string, string, error)
 	ListKeys(serviceAccountEmail string) ([]string, error)
 }
 
@@ -23,13 +23,13 @@ type serviceAccountClient struct {
 }
 
 // NewServiceAccountClient creates a new GCP client for service account key management
-func NewServiceAccountClient(iamClient IamGcpClient, objectStorageCache ObjectStorageCache) *serviceAccountClient {
+func NewServiceAccountClient(iamClient IamGcpClient, objectStorageCache ObjectStorageCache) ServiceAccountClient {
 	return &serviceAccountClient{gcpIamClient: iamClient, objectStorageCache: objectStorageCache}
 }
 
 // NewDefaultServiceAccountClient creates a new GCP client for service account key management based on defaults
 // Authentication against GCP must have already been performed before invoking this operation
-func NewDefaultServiceAccountClient() *serviceAccountClient {
+func NewDefaultServiceAccountClient() ServiceAccountClient {
 	return NewServiceAccountClient(NewDefaultIamClient(), NewDefaultObjectStorageCache())
 }
 
@@ -38,7 +38,7 @@ func (sac *serviceAccountClient) CreateKey(serviceAccountEmail string) (string, 
 	request := &iam.CreateServiceAccountKeyRequest{}
 	resource := fmt.Sprintf("projects/-/serviceAccounts/%s", serviceAccountEmail)
 	fmt.Printf("Creating key...\n")
-	key, err :=  sac.gcpIamClient.CreateKey(request, resource)
+	key, err := sac.gcpIamClient.CreateKey(request, resource)
 
 	if err != nil {
 		return "", "", fmt.Errorf("Projects.ServiceAccounts.Keys.Create: %v", err)
@@ -140,6 +140,6 @@ func extractKeyId(keyName string) string {
 	return keyId
 }
 
-func addKeyIdToJsonFile(keyJsonFile string, keyId string)  string {
-	return strings.Replace(keyJsonFile, ".json", "-" + keyId + ".json", -1)
+func addKeyIdToJsonFile(keyJsonFile string, keyId string) string {
+	return strings.Replace(keyJsonFile, ".json", "-"+keyId+".json", -1)
 }

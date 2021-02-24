@@ -2,11 +2,12 @@ package preferences
 
 import (
 	"fmt"
-	"github.com/dfernandezm/myiac/internal/util"
-	"gopkg.in/ini.v1"
 	"log"
 	"os"
 	"path/filepath"
+
+	"github.com/iac-io/myiac/internal/util"
+	"gopkg.in/ini.v1"
 )
 
 const (
@@ -17,20 +18,21 @@ type Preferences interface {
 	Set(name string, value string)
 	Get(name string) string
 	Del(name string)
+	SetMultiple(preferencesSet map[string]string)
 }
 
 type configPreferences struct {
-	fileName string
+	fileName       string
 	propertiesFile *ini.File
 }
 
-func DefaultConfig() *configPreferences {
+func DefaultConfig() Preferences {
 	homeDir, _ := os.UserHomeDir()
 	prefsFilePath := homeDir + preferencesFile
 	return NewConfig(prefsFilePath)
 }
 
-func NewConfig(prefsFilePath string) *configPreferences {
+func NewConfig(prefsFilePath string) Preferences {
 	var errFile error = nil
 
 	if !util.FileExists(prefsFilePath) {
@@ -73,12 +75,15 @@ func (prefs configPreferences) Del(name string) {
 	prefs.propertiesFile.Section("").DeleteKey(name)
 }
 
+func (prefs configPreferences) SetMultiple(preferencesSet map[string]string) {
+	for key, value := range preferencesSet {
+		prefs.Set(key, value)
+	}
+}
+
 func createPath(p string) (*os.File, error) {
 	if err := os.MkdirAll(filepath.Dir(p), 0770); err != nil {
 		return nil, err
 	}
 	return os.Create(p)
 }
-
-
-

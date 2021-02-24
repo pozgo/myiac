@@ -2,18 +2,18 @@ package gcp
 
 import (
 	"context"
+	"testing"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"google.golang.org/api/googleapi"
 	"google.golang.org/api/iam/v1"
-	"os"
-	"testing"
 )
 
 type keyGenerator struct {
 	keyName string
 	keyData string
-	keys []*iam.ServiceAccountKey
+	keys    []*iam.ServiceAccountKey
 }
 
 func newKeyGenerator(keyName string, keyData string) *keyGenerator {
@@ -45,7 +45,7 @@ type fakeIamClient struct {
 }
 
 func newFakeIamClient(keyGenerator *keyGenerator) *fakeIamClient {
-	return &fakeIamClient{keyGenerator: keyGenerator }
+	return &fakeIamClient{keyGenerator: keyGenerator}
 }
 
 func (fic *fakeIamClient) setKeyGenerator(keyGenerator *keyGenerator) {
@@ -79,14 +79,9 @@ func (m *fakeObjectStorageCache) Write(ctx context.Context, bucketName string, k
 	return args.Error(0)
 }
 
-func (m fakeObjectStorageCache) Read(ctx context.Context, bucketName string, objectKey string) (interface{},error) {
+func (m fakeObjectStorageCache) Read(ctx context.Context, bucketName string, objectKey string) (interface{}, error) {
 	args := m.Called(ctx, bucketName, objectKey)
 	return args.Get(0).(interface{}), args.Error(1)
-}
-
-func TestMain(m *testing.M) {
-	code := m.Run()
-	os.Exit(code)
 }
 
 func TestCreateNewKey(t *testing.T) {
@@ -94,7 +89,7 @@ func TestCreateNewKey(t *testing.T) {
 	mockIamClient := newFakeIamClient(kg)
 
 	objStorageCacheMock := new(fakeObjectStorageCache)
-	objStorageCacheMock.On("Write", nil, "test","key","val").Return(nil)
+	objStorageCacheMock.On("Write", nil, "test", "key", "val").Return(nil)
 	objStorageCacheMock.On("Read", nil, "testBucket", "key").Return("", nil)
 
 	saClient := NewServiceAccountClient(mockIamClient, objStorageCacheMock)
